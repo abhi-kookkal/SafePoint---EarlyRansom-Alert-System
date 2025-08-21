@@ -1,0 +1,130 @@
+.alert-detail-dark {
+  background: #e8e7ee;// Card background is white
+  color: #222;      // Main card text is black
+  border-radius: 18px;
+  box-shadow: 0 6px 32px #000a 0.10;
+  padding: 32px 28px;
+  max-width: 440px;
+  margin: 48px auto;
+  font-family: 'Roboto', Arial, sans-serif;
+  transition: background 0.3s;
+
+  .alert-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 18px;
+    gap: 10px;
+    .alert-icon {
+      font-size: 2rem;
+      color: #1976d2;
+    }
+    .alert-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      flex: 1;
+      color: #111; // Ensures header is black
+    }
+    .status-chip {
+      border-radius: 8px;
+      padding: 0.15em 0.9em;
+      font-size: 0.94em;
+      font-weight: 600;
+      margin-left: 4px;
+      letter-spacing: 0.5px;
+      &.active { background: #1976d2; color: #fff; }
+      &.non-issue { background: #43a047; color: #fff; }
+      &.resolved { background: #757575; color: #fff; }
+    }
+    .risk-chip {
+      border-radius: 8px;
+      padding: 0.15em 0.9em;
+      font-size: 0.94em;
+      font-weight: 600;
+      margin-left: 4px;
+      letter-spacing: 0.5px;
+      &.high { background: #e53935; color: #fff; }
+      &.medium { background: #fbc02d; color: #222; }
+      &.low { background: #43a047; color: #fff; }
+    }
+  }
+
+  .alert-fields {
+    margin-bottom: 22px;
+    .field-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+      mat-icon {
+        margin-right: 8px;
+        color: #1976d2;
+      }
+      span {
+        font-size: 1.06rem;
+        color: #222;
+      }
+    }
+  }
+
+  .actions {
+    margin-top: 18px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    button[mat-raised-button] {
+      min-width: 135px;
+      font-weight: 500;
+    }
+    .btn-red {
+      background: #df1010 !important;
+      color: #fff !important;
+      &:hover, &:focus {
+        background: #eb1616 !important;
+        color: #fff !important;
+      }
+      &[disabled] {
+        background: #bdbdbd !important;
+        color: #fff !important;
+        opacity: 0.7;
+      }
+    }
+    .btn-blue {
+      background: #1976d2 !important;
+      color: #fff !important;
+      &:hover, &:focus {
+        background: #0d47a1 !important;
+        color: #fff !important;
+      }
+      &[disabled] {
+        background: #bdbdbd !important;
+        color: #fff !important;
+        opacity: 0.7;
+      }
+    }
+    .btn-green {
+      background: #43a047 !important;
+      color: #fff !important;
+      &:hover, &:focus {
+        background: #388e3c !important;
+        color: #fff !important;
+      }
+      &[disabled] {
+        background: #bdbdbd !important;
+        color: #fff !important;
+        opacity: 0.7;
+      }
+    }
+  }
+
+  .success-message {
+    margin-top: 18px;
+    color: #43a047;
+    font-weight: 500;
+    font-size: 1.07rem;
+    text-align: center;
+  }
+}
+
+// Set the page background to white
+body, .main-container {
+  background: #fff !important;
+}

@@ -1,0 +1,42 @@
+.main-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+//   background: #8881ee;
+
+  .brand {
+    font-weight: 600;
+    font-size: 1.25rem;
+    letter-spacing: 1px;
+  }
+  .spacer {
+    flex: 1 1 auto;
+  }
+  a[mat-button] {
+    color: #fff;
+    font-weight: 500;
+    &.active-link {
+      border-bottom: 2px solid #fff;
+    }
+  }
+}
+
+.main-container {
+  max-width: 1100px;
+  margin: 32px auto 0 auto;
+  padding: 24px;
+  background: #fafbfc;
+  border-radius: 12px;
+  min-height: 80vh;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+@media (max-width: 700px) {
+  .main-container {
+    padding: 8px;
+    margin-top: 16px;
+  }
+  .main-toolbar .brand {
+    font-size: 1rem;
+  }
+}

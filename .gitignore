@@ -1,3 +1,4 @@
 agent/venv/
 frontend/node_modules/
 backend/venv/
+frontend/.angular

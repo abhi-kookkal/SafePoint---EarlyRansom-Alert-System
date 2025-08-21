@@ -1,0 +1,42 @@
+<div class="dashboard">
+    <h2>🚨 Active Alerts</h2>
+    <div *ngIf="loading">Loading alerts...</div>
+    <table *ngIf="!loading && alerts.length > 0">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>File</th>
+          <th>Process</th>
+          <th>User</th>
+          <th>Time</th>
+          <th>Status</th>
+          <th>Risk</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let alert of alerts">
+          <td>{{ alert.id }}</td>
+          <td>{{ alert.file }}</td>
+          <td>{{ alert.process }}</td>
+          <td>{{ alert.user }}</td>
+          <td>{{ alert.timestamp }}</td>
+          <td>{{ alert.status }}</td>
+          <td>
+            <span [ngClass]="{
+              'risk-low': alert.riskLevel === 'low',
+              'risk-medium': alert.riskLevel === 'medium',
+              'risk-high': alert.riskLevel === 'high'
+            }">
+              {{ alert.riskLevel | titlecase }}
+            </span>
+          </td>
+          <td>
+            <a [routerLink]="['/alert', alert.id]">View</a>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <div *ngIf="!loading && alerts.length === 0">✅ No active alerts</div>
+  </div>
+  
