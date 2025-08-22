@@ -80,7 +80,10 @@ class AlertIn(BaseModel):
 
 @app.post("/alerts")
 def receive_alert(alert: AlertIn, db: Session = Depends(get_db)):
+    print("[backend] received alert:", alert)
+    
     db_alert = models.Alert(
+        id=alert.id,   # store incoming alert id here
         file=alert.file,
         process=alert.process,
         user=alert.user,
@@ -88,10 +91,13 @@ def receive_alert(alert: AlertIn, db: Session = Depends(get_db)):
         status=alert.status,
         riskLevel=alert.riskLevel
     )
-    db.add(db_alert)
+    
+    db.merge(db_alert)  # use merge so re-sending same alert doesn’t break
     db.commit()
     db.refresh(db_alert)
+
     return {"status": "alert_received", "alert_id": db_alert.id}
+
 
 @app.get("/fetch_alerts")
 def fetch_alerts(db: Session = Depends(get_db)):
@@ -145,34 +151,28 @@ def fetch_endpoints(db: Session = Depends(get_db)):
 # ACTIONS
 # -----------------------
 from fastapi import HTTPException
-
+import requests
 # In-memory actions DB (for demo)
 actions_db = {}
 
 @app.post("/fetch_alerts/{id}/kill_process")
 def kill_process(id: str, db: Session = Depends(get_db)):
-    """
-    Frontend calls this API when user clicks 'Kill Process' for a specific alert.
-    We enqueue the kill action for the endpoint associated with the alert.
-    """
     alert = db.query(models.Alert).filter(models.Alert.id == id).first()
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
-    endpoint_id = alert.user  # adjust if endpoint_id is stored elsewhere
+    # endpoint_id = alert.user
+    endpoint_id = "localhost"
+
     process_name = alert.process
-    # Since we don't have pid in alert, use a dummy value or extend model if needed
-    pid = -1
-    if endpoint_id not in actions_db:
-        actions_db[endpoint_id] = []
-    action_id = len(actions_db[endpoint_id]) + 1
-    action = {
-        "id": action_id,
-        "action": "kill_process",
-        "pid": pid,
-        "process_name": process_name
-    }
-    actions_db[endpoint_id].append(action)
-    return {"status": "queued", "action": action}
+    # import pdb; pdb.set_trace()
+    # Directly call agent API
+    try:
+        print("[backend] kill_process:", id)
+        r = requests.post(f"http://localhost:9000/agent/kill_process/{id}")
+        print("[backend] kill_process response:", r.json())
+        return r.json()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to contact agent: {e}")
 
 
 @app.get("/actions")

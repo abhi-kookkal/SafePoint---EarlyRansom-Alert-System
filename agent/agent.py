@@ -103,20 +103,16 @@ class Backend:
         write_rate: int,
         request_terminate: bool = True,
     ):
-        # Compose alert payload as per new API requirements
         payload = {
-            "id": pid,  # You may want to increment or generate this dynamically
+            "id": pid,
             "file": file_path,
             "process": process_name,
             "user": os.environ.get("USER", "unknown"),
-            "timestamp": "2025-08-21 22:14:19",  # Use provided local time
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "status": "Active",
             "riskLevel": "high"
         }
-        # If you want to keep the old payload for other uses, consider renaming or duplicating it.
         try:
-            # import pdb;pdb.set_trace()
-
             r = requests.post(f"{self.base}/alerts", json=payload, timeout=5)
             r.raise_for_status()
             print("[backend] alert sent:", reason)
@@ -186,15 +182,11 @@ class RansomwareDetector(FileSystemEventHandler):
     def _handle(self, event):
         if event.is_directory:
             return
-
-        # Always use src_path for file events
         path = Path(getattr(event, "src_path", ""))
         print(f"[DEBUG] Event: {event}, src_path: {getattr(event, 'src_path', None)}, dest_path: {getattr(event, 'dest_path', None)}, path: {path}")
         if not path.is_file():
             return
-
         self.events_window.append(time.time())
-
         is_canary = self._is_canary(path)
         ent = file_entropy(path) if path.exists() else 0.0
         rate = self._write_rate()
@@ -234,7 +226,6 @@ class Agent:
     def __init__(self):
         self.backend = Backend(BACKEND)
         self.local_ip = get_local_ip()
-        # Register this agent with the backend on startup
         self.backend.register(
             endpoint_id=ENDPOINT_ID,
             endpoint_name=socket.gethostname(),
@@ -249,7 +240,6 @@ class Agent:
         self.observer.start()
         print(f"[agent] watching: {WATCH_DIR}")
         print(f"[agent] endpoint_id={ENDPOINT_ID}  name={ENDPOINT_NAME}  ip={self.local_ip}")
-
         try:
             while True:
                 time.sleep(1)
@@ -259,6 +249,37 @@ class Agent:
             self.observer.stop()
             self.observer.join()
 
+    def kill_process(self, pid: int) -> bool:
+        """Kill a process by PID. Returns True if killed successfully, else False."""
+        if not pid or not isinstance(pid, int) or pid <= 0:
+            print(f"[agent] invalid pid: {pid}")
+            return False
+        try:
+            proc = psutil.Process(pid)
+            proc.terminate()
+            proc.wait(timeout=3)
+            print(f"[agent] killed process (pid {pid}, name={proc.name()})")
+            return True
+        except psutil.NoSuchProcess:
+            print(f"[agent] process {pid} not found")
+        except Exception as e:
+            print(f"[agent] failed to kill process {pid}: {e}")
+        return False
+
+    def kill_process_by_name(self, process_name: str) -> bool:
+        """Kill all processes by name. Returns True if at least one was killed."""
+        success = False
+        for proc in psutil.process_iter(["pid", "name"]):
+            if proc.info["name"] == process_name:
+                try:
+                    proc.terminate()
+                    proc.wait(timeout=3)
+                    print(f"[agent] killed process {process_name} (pid {proc.info['pid']})")
+                    success = True
+                except Exception as e:
+                    print(f"[agent] failed to kill {process_name} (pid {proc.info['pid']}): {e}")
+        return success
+
     def poll_actions_loop(self):
         while True:
             try:
@@ -266,25 +287,39 @@ class Agent:
                 for a in actions:
                     if a.get("action") == "kill_process":
                         pid = a.get("pid")
-                        try:
-                            proc = psutil.Process(pid)
-                            proc.terminate()
-                            proc.wait(timeout=3)
-                            print(f"[agent] killed process {a.get('process_name')} (pid {pid})")
-                        except Exception as e:
-                            print(f"[agent] failed to kill process {pid}: {e}")
-                    # mark action done
-                    self.backend.mark_action_done(a.get("id"))
+                        process_name = a.get("process_name")
+                        success = False
+                        if pid:
+                            success = self.kill_process(pid)
+                        elif process_name:
+                            success = self.kill_process_by_name(process_name)
+                        if success:
+                            print(f"[agent] action completed: {a}")
+                        else:
+                            print(f"[agent] action failed: {a}")
+                        self.backend.mark_action_done(a.get("id"))
             except Exception as e:
                 print("[agent] action polling error:", e)
             time.sleep(POLL_ACTIONS_INTERVAL)
 
 
-
 # =========================
 # Main
 # =========================
+from fastapi import FastAPI
+import uvicorn
+
+agent_app = FastAPI()
+
+@agent_app.post("/agent/kill_process/{pid}")
+def kill_process_api(pid: int):
+    agent = Agent()  # Or reuse existing singleton
+    success = agent.kill_process(pid)
+    return {"status": "success" if success else "failed"}
+
 if __name__ == "__main__":
     agent = Agent()
     threading.Thread(target=agent.poll_actions_loop, daemon=True).start()
-    agent.start()
+    threading.Thread(target=agent.start, daemon=True).start()
+    uvicorn.run(agent_app, host="0.0.0.0", port=9000)
+
