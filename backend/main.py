@@ -77,6 +77,7 @@ class AlertIn(BaseModel):
     timestamp: str
     status: str
     riskLevel: str
+    ip: str
 
 @app.post("/alerts")
 def receive_alert(alert: AlertIn, db: Session = Depends(get_db)):
@@ -89,7 +90,8 @@ def receive_alert(alert: AlertIn, db: Session = Depends(get_db)):
         user=alert.user,
         timestamp=alert.timestamp,
         status=alert.status,
-        riskLevel=alert.riskLevel
+        riskLevel=alert.riskLevel,
+        ip=alert.ip
     )
     
     db.merge(db_alert)  # use merge so re-sending same alert doesn’t break
@@ -110,7 +112,8 @@ def fetch_alerts(db: Session = Depends(get_db)):
             "user": alert.user,
             "timestamp": alert.timestamp.isoformat() if hasattr(alert.timestamp, 'isoformat') else str(alert.timestamp),
             "status": alert.status,
-            "riskLevel": alert.riskLevel
+            "riskLevel": alert.riskLevel,
+            "device_id": alert.ip
         }
         for alert in alerts
     ]
@@ -127,7 +130,8 @@ def fetch_alert_by_id(id: str, db: Session = Depends(get_db)):
         "user": alert.user,
         "timestamp": alert.timestamp.isoformat() if hasattr(alert.timestamp, 'isoformat') else str(alert.timestamp),
         "status": alert.status,
-        "riskLevel": alert.riskLevel
+        "riskLevel": alert.riskLevel,
+        "device_id": alert.ip
     }
 
 
@@ -156,23 +160,46 @@ import requests
 actions_db = {}
 
 @app.post("/fetch_alerts/{id}/kill_process")
-def kill_process(id: str, db: Session = Depends(get_db)):
+def kill_process(id: int, db: Session = Depends(get_db)):   # 👈 id should be int
+    # Fetch the alert by id
     alert = db.query(models.Alert).filter(models.Alert.id == id).first()
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
-    # endpoint_id = alert.user
-    endpoint_id = "localhost"
 
+    # Get IP and process from DB row
+    endpoint_ip = alert.ip
     process_name = alert.process
-    # import pdb; pdb.set_trace()
-    # Directly call agent API
+
     try:
-        print("[backend] kill_process:", id)
-        r = requests.post(f"http://localhost:9000/agent/kill_process/{id}")
+        print(f"[backend] kill_process: {process_name} on {endpoint_ip}")
+        # Call the agent API with process_name (not the id!)
+        r = requests.post(f"http://{endpoint_ip}:9000/agent/kill_process/{process_name}")
         print("[backend] kill_process response:", r.json())
         return r.json()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to contact agent: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to contact agent {endpoint_ip}: {e}")
+
+
+@app.post("/fetch_alerts/{id}/isolate")
+def isolate_device(id: int, db: Session = Depends(get_db)):
+    # Fetch the alert by id
+    alert = db.query(models.Alert).filter(models.Alert.id == id).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+
+    # Get the endpoint IP from DB
+    agent_ip = alert.ip
+
+    try:
+        print(f"[backend] isolate_device: alert={id}, forwarding request to agent {agent_ip}")
+        r = requests.post(
+            f"http://{agent_ip}:9000/agent/isolate_device",
+            timeout=5
+        )
+        response = r.json()
+        return {"status": "ok", "response": response}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to contact agent at {agent_ip}: {e}")
 
 
 @app.get("/actions")
