@@ -23,7 +23,7 @@ export class AlertDetailComponent implements OnInit {
 
   killProcess(): void {
     if (!this.alert) return;
-    console.log("kill process", this.alert.id)
+    console.log("kill process", this.alert)
     this.alertService.killProcess(this.alert.id).subscribe(() => {
       this.message = '🛑 Process killed successfully';
     });

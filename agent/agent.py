@@ -16,7 +16,7 @@ from typing import Optional
 # Config
 # =========================
 BACKEND = "http://127.0.0.1:8000"
-ENDPOINT_ID = os.environ.get("ENDPOINT_ID", "laptop-001")
+# ENDPOINT_ID = os.environ.get("ENDPOINT_ID", "laptop-001")
 ENDPOINT_NAME = socket.gethostname()
 WATCH_DIR = Path.home() / "Documents" / "Canaries"
 WATCH_DIR.mkdir(parents=True, exist_ok=True)
@@ -41,7 +41,7 @@ def get_local_ip():
         return ip
     except Exception:
         return "unknown"
-
+ENDPOINT_ID = get_local_ip()
 
 def file_entropy(path: Path) -> float:
     try:
@@ -110,7 +110,8 @@ class Backend:
             "user": os.environ.get("USER", "unknown"),
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "status": "Active",
-            "riskLevel": "high"
+            "riskLevel": "high",
+            "ip": ip
         }
         try:
             r = requests.post(f"{self.base}/alerts", json=payload, timeout=5)
@@ -218,7 +219,6 @@ class RansomwareDetector(FileSystemEventHandler):
             parts.append(f"high entropy (~{ent:.2f})")
         return "; ".join(parts) or "suspicious pattern"
 
-
 # =========================
 # Agent
 # =========================
@@ -306,20 +306,61 @@ class Agent:
 # =========================
 # Main
 # =========================
-from fastapi import FastAPI
+from fastapi import FastAPI, Body
 import uvicorn
+import subprocess, platform   # required for isolation
+import re
+
+def get_active_interface():
+    result = subprocess.run("ip link show", shell=True, capture_output=True, text=True)
+    interfaces = []
+    for line in result.stdout.splitlines():
+        # Matches lines like: "3: wlp0s20f3: <BROADCAST,MULTICAST,UP,LOWER_UP>"
+        match = re.match(r'^\d+: ([^:]+): <([^>]+)>', line)
+        if match:
+            name, flags = match.groups()
+            if "UP" in flags and not name.startswith(("lo", "docker", "br-")):
+                interfaces.append(name)
+    return interfaces[0] if interfaces else None
+
+def isolate_device():
+    os_type = platform.system()
+    interface = get_active_interface()
+    if not interface:
+        print("No active interface found.")
+        return
+
+    try:
+        if os_type == "Windows":
+            subprocess.run(f'netsh interface set interface "{interface}" admin=disable', shell=True)
+
+        elif os_type == "Linux":
+            subprocess.run(f"sudo ip link set {interface} down", shell=True)
+
+        else:
+            print("Unsupported OS")
+
+        print(f"Device isolated: {interface} disabled.")
+    except Exception as e:
+        print(f"Error: {e}")
 
 agent_app = FastAPI()
 
+# Reuse a single agent instance
+agent = Agent()
+
 @agent_app.post("/agent/kill_process/{pid}")
 def kill_process_api(pid: int):
-    agent = Agent()  # Or reuse existing singleton
     success = agent.kill_process(pid)
     return {"status": "success" if success else "failed"}
 
+
+@agent_app.post("/agent/isolate_device")
+def isolate_device_api():
+    return isolate_device()
+
 if __name__ == "__main__":
-    agent = Agent()
+    # Start background agent loops
     threading.Thread(target=agent.poll_actions_loop, daemon=True).start()
     threading.Thread(target=agent.start, daemon=True).start()
     uvicorn.run(agent_app, host="0.0.0.0", port=9000)
-

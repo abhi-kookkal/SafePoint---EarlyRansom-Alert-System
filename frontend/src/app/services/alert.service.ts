@@ -10,6 +10,7 @@ export interface Alert {
   timestamp: string;
   status: string;
   riskLevel: 'low' | 'medium' | 'high';
+  device_id:string;
 }
 
 
