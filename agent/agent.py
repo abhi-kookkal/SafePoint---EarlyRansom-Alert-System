@@ -15,7 +15,7 @@ from typing import Optional
 # =========================
 # Config
 # =========================
-BACKEND = "http://127.0.0.1:8000"
+BACKEND = "http://172.19.102.48:8000"
 # ENDPOINT_ID = os.environ.get("ENDPOINT_ID", "laptop-001")
 ENDPOINT_NAME = socket.gethostname()
 WATCH_DIR = Path.home() / "Documents" / "Canaries"
