@@ -94,11 +94,11 @@ def receive_alert(alert: AlertIn, db: Session = Depends(get_db)):
         ip=alert.ip
     )
     
-    db.merge(db_alert)  # use merge so re-sending same alert doesn’t break
+    merged_alert = db.merge(db_alert)  # use merge so re-sending same alert doesn’t break
     db.commit()
-    db.refresh(db_alert)
+    db.refresh(merged_alert)
 
-    return {"status": "alert_received", "alert_id": db_alert.id}
+    return {"status": "alert_received", "alert_id": merged_alert.id}
 
 
 @app.get("/fetch_alerts")
@@ -173,7 +173,7 @@ def kill_process(id: int, db: Session = Depends(get_db)):   # 👈 id should be 
     try:
         print(f"[backend] kill_process: {process_name} on {endpoint_ip}")
         # Call the agent API with process_name (not the id!)
-        r = requests.post(f"http://{endpoint_ip}:9000/agent/kill_process/{process_name}")
+        r = requests.post(f"http://{endpoint_ip}:9000/agent/kill_process/{id}")
         print("[backend] kill_process response:", r.json())
         return r.json()
     except Exception as e:

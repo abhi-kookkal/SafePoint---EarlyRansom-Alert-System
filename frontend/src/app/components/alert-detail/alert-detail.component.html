@@ -14,7 +14,7 @@
     <div class="actions">
       <button mat-raised-button class="btn-red" (click)="killProcess()" [disabled]="alert.status === 'non-issue'">Kill Process</button>
 <button mat-raised-button class="btn-blue" (click)="isolateDevice()" [disabled]="alert.status === 'non-issue'">Isolate Device</button>
-<button mat-raised-button class="btn-green" (click)="markNonIssue()" [disabled]="alert.status === 'non-issue'">Mark as Non-Issue</button>
+<!-- <button mat-raised-button class="btn-green" (click)="markNonIssue()" [disabled]="alert.status === 'non-issue'">Mark as Non-Issue</button> -->
     </div>
     <div *ngIf="message" class="success-message">{{ message }}</div>
   </div>
