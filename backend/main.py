@@ -1,9 +1,11 @@
-from fastapi import FastAPI, Depends, Query
+from fastapi import FastAPI, Depends, Query, WebSocket, WebSocketDisconnect, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from database import SessionLocal, engine
 import models
 from fastapi.middleware.cors import CORSMiddleware
+from typing import List
+import requests
 
 # create tables if not exist
 models.Base.metadata.create_all(bind=engine)
@@ -204,7 +206,36 @@ def isolate_device(id: int, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to contact agent at {agent_ip}: {e}")
 
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 @app.get("/actions")
 def poll_actions(endpoint_id: str):
     return actions_db.get(endpoint_id, [])
+
+
+frontend_connections: List[WebSocket] = []
+
+@app.websocket("/ws/device")
+async def device_ws(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_text()
+            # Broadcast to all frontend clients
+            for conn in frontend_connections:
+                try:
+                    await conn.send_text(data)
+                except Exception as e:
+                    print("[backend] failed to send to frontend:", e)
+    except WebSocketDisconnect:
+        print("[backend] device disconnected")
+
+@app.websocket("/ws/frontend")
+async def frontend_ws(websocket: WebSocket):
+    await websocket.accept()
+    frontend_connections.append(websocket)
+    try:
+        while True:
+            await websocket.receive_text()  # Keep the connection open, ignore messages from frontend
+    except WebSocketDisconnect:
+        frontend_connections.remove(websocket)

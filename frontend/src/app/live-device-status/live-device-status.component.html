@@ -1,0 +1,16 @@
+<div *ngIf="latestStatus">
+    <h3>Live Device Status</h3>
+    <p><strong>Device IP:</strong> {{ latestStatus.ip }}</p>
+    <p><strong>Risk Score:</strong> {{ latestStatus.device_risk_score }}</p>
+  </div>
+  
+  <div *ngIf="allStatuses.length > 1">
+    <h4>Status History</h4>
+    <ul>
+      <li *ngFor="let status of allStatuses.slice(1, 10)">
+        <strong>Device IP:</strong> {{ status.ip }} | 
+        <strong>Risk Score:</strong> {{ status.device_risk_score }}
+      </li>
+    </ul>
+  </div>
+  

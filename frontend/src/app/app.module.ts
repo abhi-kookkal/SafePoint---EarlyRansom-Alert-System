@@ -18,6 +18,7 @@ import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatChipsModule } from '@angular/material/chips';
 import { MockInterceptor } from './services/mock.interceptor';
+import { LiveDeviceStatusComponent } from './live-device-status/live-device-status.component';
 
 
 
@@ -26,7 +27,8 @@ import { MockInterceptor } from './services/mock.interceptor';
     AppComponent,
     DashboardComponent,
     EndpointListComponent,
-    AlertDetailComponent
+    AlertDetailComponent,
+    LiveDeviceStatusComponent
   ],
   imports: [
     BrowserModule,

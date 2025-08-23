@@ -15,11 +15,16 @@ from fastapi import FastAPI
 import uvicorn
 import subprocess, platform
 import re
+import asyncio
+import websockets
+import json
 
 # =========================
 # Config
 # =========================
 BACKEND = "http://172.19.103.44:8000"
+BACKEND_WS = "ws://172.19.103.44:8000/ws/device"   #  WebSocket endpoint
+
 ENDPOINT_NAME = socket.gethostname()
 WATCH_DIR = Path.home() / "Documents" / "Canaries"
 WATCH_DIR.mkdir(parents=True, exist_ok=True)
@@ -30,6 +35,9 @@ WRITE_RATE_THRESHOLD = 20
 ENTROPY_THRESHOLD = 7.5
 SUSPICIOUS_SCORE_THRESHOLD = 80
 POLL_ACTIONS_INTERVAL = 3
+# Interval (in seconds) between WebSocket status pushes
+default_push_status_interval = 5
+PUSH_STATUS_INTERVAL = globals().get('PUSH_STATUS_INTERVAL', default_push_status_interval)
 
 # =========================
 # Helpers
@@ -251,6 +259,41 @@ class Agent:
                 print("[agent] process monitoring error:", e)
             time.sleep(2)
 
+        
+    # -------------------------
+    # New: WebSocket status push
+    # -------------------------
+    async def push_status_loop(self):
+        while True:
+            try:
+                print(f"[agent] Attempting to connect to backend WebSocket at {BACKEND_WS}...")
+                async with websockets.connect(BACKEND_WS) as ws:
+                    print("[agent] Connected to backend WebSocket!")
+                    while True:
+                        status = self.get_device_status()
+                        status.update({
+                            "endpoint_id": ENDPOINT_ID,
+                            "hostname": ENDPOINT_NAME,
+                            "ip": self.local_ip
+                        })
+                        msg = json.dumps(status)
+                        try:
+                            await ws.send(msg)
+                            # print(f"[agent] WS status sent: {msg}")
+                        except Exception as send_err:
+                            # print(f"[agent] Error sending WS message: {send_err}")
+                            break  # Force reconnect
+                        await asyncio.sleep(PUSH_STATUS_INTERVAL)
+            except Exception as e:
+                # print("[agent] push_status WS error:", e)
+                # print("[agent] Troubleshooting tips: Is the backend running and accessible at the specified WS URL? Is the port correct? Any firewall issues? Retrying in 5s...")
+                await asyncio.sleep(2)  # retry
+
+    def start_push_status(self):
+        def runner():
+            asyncio.run(self.push_status_loop())
+        threading.Thread(target=runner, daemon=True).start()
+
     # -------------------------
     # Existing methods
     # -------------------------
@@ -299,8 +342,10 @@ class Agent:
         while True:
             try:
                 actions = self.backend.poll_actions(ENDPOINT_ID)
+                print("[agent] polled actions:", actions)
                 for a in actions:
-                    if a.get("action") == "kill_process":
+                    print("[agent] action item:", a, type(a))
+                    if isinstance(a, dict) and a.get("action") == "kill_process":
                         pid = a.get("pid")
                         process_name = a.get("process_name")
                         success = False
@@ -317,13 +362,18 @@ class Agent:
                 print("[agent] action polling error:", e)
             time.sleep(POLL_ACTIONS_INTERVAL)
 
+
     def get_device_status(self):
         processes = [
             {"pid": pid, "name": psutil.Process(pid).name(), "risk_score": score}
             for pid, score in self.process_scores.items()
             if psutil.pid_exists(pid)
         ]
-        return {"device_risk_score": self.device_risk_score, "monitored_processes": processes}
+        return {
+        "device_risk_score": self.device_risk_score,
+        "monitored_processes": processes,
+        "ip": self.local_ip
+    }
 
 # =========================
 # Isolation
@@ -383,4 +433,5 @@ if __name__ == "__main__":
     threading.Thread(target=agent.poll_actions_loop, daemon=True).start()
     threading.Thread(target=agent.monitor_processes_loop, daemon=True).start()
     threading.Thread(target=agent.start, daemon=True).start()
+    agent.start_push_status()
     uvicorn.run(agent_app, host="0.0.0.0", port=9000)
