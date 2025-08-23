@@ -11,7 +11,8 @@ export interface Alert {
   status: string;
   riskLevel: 'low' | 'medium' | 'high';
   device_id:string;
-}
+  device_risk_score: number;
+} 
 
 
 @Injectable({ providedIn: 'root' })

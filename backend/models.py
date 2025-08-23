@@ -14,6 +14,7 @@ class Alert(Base):
     status = Column(String, nullable=False)
     riskLevel = Column(String, nullable=False)
     ip = Column(String, nullable=False)  # Device IP address
+    device_risk_score = Column(Integer, nullable=False)
 
 class Device(Base):
     __tablename__ = "devices"

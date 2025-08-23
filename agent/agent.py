@@ -7,16 +7,19 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from datetime import datetime
 from pathlib import Path
-from collections import deque
+from collections import deque, defaultdict
 from math import log2
 import socket
 from typing import Optional
+from fastapi import FastAPI
+import uvicorn
+import subprocess, platform
+import re
 
 # =========================
 # Config
 # =========================
-BACKEND = "http://172.19.102.48:8000"
-# ENDPOINT_ID = os.environ.get("ENDPOINT_ID", "laptop-001")
+BACKEND = "http://172.19.103.44:8000"
 ENDPOINT_NAME = socket.gethostname()
 WATCH_DIR = Path.home() / "Documents" / "Canaries"
 WATCH_DIR.mkdir(parents=True, exist_ok=True)
@@ -27,7 +30,6 @@ WRITE_RATE_THRESHOLD = 20
 ENTROPY_THRESHOLD = 7.5
 SUSPICIOUS_SCORE_THRESHOLD = 80
 POLL_ACTIONS_INTERVAL = 3
-
 
 # =========================
 # Helpers
@@ -55,9 +57,7 @@ def file_entropy(path: Path) -> float:
     except Exception:
         return 0.0
 
-
 def find_writer_process(path: Path):
-    # For hackathon demo: just return python if simulate_ransom is running
     for p in psutil.process_iter(["pid", "name", "cmdline"]):
         try:
             name = p.info["name"] or ""
@@ -68,7 +68,6 @@ def find_writer_process(path: Path):
             pass
     return ("unknown", None)
 
-
 # =========================
 # Backend wrapper
 # =========================
@@ -77,32 +76,16 @@ class Backend:
         self.base = base
 
     def register(self, endpoint_id: int, endpoint_name: str, ip: str):
-        """Send registration data to backend"""
         try:
-            payload = {
-                "id": endpoint_id,
-                "hostname": endpoint_name,
-                "ip": ip,
-                "status": "online"
-            }
+            payload = {"id": endpoint_id, "hostname": endpoint_name, "ip": ip, "status": "online"}
             resp = requests.post(f"{self.base}/register", json=payload, timeout=5)
             print("[backend] registered endpoint:", resp.json())
         except Exception as e:
             print("[backend] register failed:", e)
 
-    def send_alert(
-        self,
-        endpoint_id: str,
-        ip: str,
-        process_name: str,
-        pid: Optional[int],
-        risk_score: int,
-        reason: str,
-        file_path: str,
-        entropy: float,
-        write_rate: int,
-        request_terminate: bool = True,
-    ):
+    def send_alert(self, endpoint_id: str, ip: str, process_name: str, pid: Optional[int],
+                   risk_score: int, reason: str, file_path: str, entropy: float, write_rate: int,
+                   device_risk_score: int, request_terminate: bool = True):
         payload = {
             "id": pid,
             "file": file_path,
@@ -111,8 +94,11 @@ class Backend:
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "status": "Active",
             "riskLevel": "high",
-            "ip": ip
+            "ip": ip,
+            "risk_score": risk_score,
+            "device_risk_score": device_risk_score
         }
+        print("[backend] alert sent:", payload)
         try:
             r = requests.post(f"{self.base}/alerts", json=payload, timeout=5)
             r.raise_for_status()
@@ -133,20 +119,19 @@ class Backend:
         except Exception:
             pass
 
-
 # =========================
 # Detector
 # =========================
 class RansomwareDetector(FileSystemEventHandler):
-    def __init__(self, backend: Backend, endpoint_id: str, local_ip: str):
+    def __init__(self, backend: Backend, endpoint_id: str, local_ip: str, agent):
         super().__init__()
         self.backend = backend
         self.endpoint_id = endpoint_id
         self.local_ip = local_ip
-
         self.events_window = deque(maxlen=200)
         self.watch_dir = WATCH_DIR
         self.canaries = self._ensure_canaries()
+        self.agent = agent
 
     def _ensure_canaries(self):
         self.watch_dir.mkdir(parents=True, exist_ok=True)
@@ -184,7 +169,6 @@ class RansomwareDetector(FileSystemEventHandler):
         if event.is_directory:
             return
         path = Path(getattr(event, "src_path", ""))
-        print(f"[DEBUG] Event: {event}, src_path: {getattr(event, 'src_path', None)}, dest_path: {getattr(event, 'dest_path', None)}, path: {path}")
         if not path.is_file():
             return
         self.events_window.append(time.time())
@@ -205,6 +189,7 @@ class RansomwareDetector(FileSystemEventHandler):
                 file_path=str(path),
                 entropy=ent,
                 write_rate=rate,
+                device_risk_score=self.agent.device_risk_score,
                 request_terminate=True,
             )
 
@@ -231,9 +216,44 @@ class Agent:
             endpoint_name=socket.gethostname(),
             ip=self.local_ip
         )
-        self.detector = RansomwareDetector(self.backend, ENDPOINT_ID, self.local_ip)
+        self.detector = RansomwareDetector(self.backend, ENDPOINT_ID, self.local_ip, self)
         self.observer = Observer()
+        self.process_file_history = defaultdict(lambda: deque(maxlen=50))
+        self.process_scores = defaultdict(int)
+        self.device_risk_score = 0
 
+    # -------------------------
+    # Preemptive process monitoring
+    # -------------------------
+    def monitor_processes_loop(self):
+        while True:
+            try:
+                for p in psutil.process_iter(["pid", "name", "cpu_percent", "memory_percent", "open_files"]):
+                    pid = p.info["pid"]
+                    score = 0
+                    if p.info["cpu_percent"] > 50:
+                        score += 10
+                    if p.info["memory_percent"] > 50:
+                        score += 10
+                    if p.info["open_files"]:
+                        score += min(len(p.info["open_files"]), 20)
+                    for f in p.info.get("open_files") or []:
+                        path = f.path
+                        self.process_file_history[pid].append(path)
+                        if str(WATCH_DIR) in path:
+                            score += 50
+                    self.process_scores[pid] = min(score, 100)
+                if self.process_scores:
+                    self.device_risk_score = max(self.process_scores.values())
+                else:
+                    self.device_risk_score = 0
+            except Exception as e:
+                print("[agent] process monitoring error:", e)
+            time.sleep(2)
+
+    # -------------------------
+    # Existing methods
+    # -------------------------
     def start(self):
         self.backend.register(ENDPOINT_ID, ENDPOINT_NAME, self.local_ip)
         self.observer.schedule(self.detector, str(WATCH_DIR), recursive=True)
@@ -250,9 +270,7 @@ class Agent:
             self.observer.join()
 
     def kill_process(self, pid: int) -> bool:
-        """Kill a process by PID. Returns True if killed successfully, else False."""
         if not pid or not isinstance(pid, int) or pid <= 0:
-            print(f"[agent] invalid pid: {pid}")
             return False
         try:
             proc = psutil.Process(pid)
@@ -260,14 +278,11 @@ class Agent:
             proc.wait(timeout=3)
             print(f"[agent] killed process (pid {pid}, name={proc.name()})")
             return True
-        except psutil.NoSuchProcess:
-            print(f"[agent] process {pid} not found")
         except Exception as e:
             print(f"[agent] failed to kill process {pid}: {e}")
         return False
 
     def kill_process_by_name(self, process_name: str) -> bool:
-        """Kill all processes by name. Returns True if at least one was killed."""
         success = False
         for proc in psutil.process_iter(["pid", "name"]):
             if proc.info["name"] == process_name:
@@ -302,20 +317,21 @@ class Agent:
                 print("[agent] action polling error:", e)
             time.sleep(POLL_ACTIONS_INTERVAL)
 
+    def get_device_status(self):
+        processes = [
+            {"pid": pid, "name": psutil.Process(pid).name(), "risk_score": score}
+            for pid, score in self.process_scores.items()
+            if psutil.pid_exists(pid)
+        ]
+        return {"device_risk_score": self.device_risk_score, "monitored_processes": processes}
 
 # =========================
-# Main
+# Isolation
 # =========================
-from fastapi import FastAPI, Body
-import uvicorn
-import subprocess, platform   # required for isolation
-import re
-
 def get_active_interface():
     result = subprocess.run("ip link show", shell=True, capture_output=True, text=True)
     interfaces = []
     for line in result.stdout.splitlines():
-        # Matches lines like: "3: wlp0s20f3: <BROADCAST,MULTICAST,UP,LOWER_UP>"
         match = re.match(r'^\d+: ([^:]+): <([^>]+)>', line)
         if match:
             name, flags = match.groups()
@@ -327,26 +343,24 @@ def isolate_device():
     os_type = platform.system()
     interface = get_active_interface()
     if not interface:
-        print("No active interface found.")
-        return
-
+        return {"status": "failed", "reason": "no interface"}
     try:
-        if os_type == "Windows":
-            subprocess.run(f'netsh interface set interface "{interface}" admin=disable', shell=True)
-
-        elif os_type == "Linux":
-            subprocess.run(f"sudo ip link set {interface} down", shell=True)
-
-        else:
-            print("Unsupported OS")
-
-        print(f"Device isolated: {interface} disabled.")
+        if os_type == "Linux":
+            subprocess.run(f"sudo iptables -A OUTPUT -o {interface} -d {BACKEND.replace('http://', '')} -j ACCEPT", shell=True)
+            subprocess.run(f"sudo iptables -A OUTPUT -o {interface} -j DROP", shell=True)
+        elif os_type == "Windows":
+            backend_host = BACKEND.replace("http://", "")
+            subprocess.run(f'netsh advfirewall firewall add rule name="EDR Backend Allow" dir=out action=allow remoteip={backend_host}', shell=True)
+            subprocess.run(f'netsh advfirewall firewall add rule name="EDR Block All" dir=out action=block', shell=True)
+        print(f"Device isolated (except backend): {interface}")
+        return {"status": "success", "interface": interface}
     except Exception as e:
-        print(f"Error: {e}")
+        return {"status": "failed", "error": str(e)}
 
+# =========================
+# FastAPI
+# =========================
 agent_app = FastAPI()
-
-# Reuse a single agent instance
 agent = Agent()
 
 @agent_app.post("/agent/kill_process/{pid}")
@@ -354,13 +368,19 @@ def kill_process_api(pid: int):
     success = agent.kill_process(pid)
     return {"status": "success" if success else "failed"}
 
-
 @agent_app.post("/agent/isolate_device")
 def isolate_device_api():
     return isolate_device()
 
+@agent_app.get("/agent/device_status")
+def device_status():
+    return agent.get_device_status()
+
+# =========================
+# Main
+# =========================
 if __name__ == "__main__":
-    # Start background agent loops
     threading.Thread(target=agent.poll_actions_loop, daemon=True).start()
+    threading.Thread(target=agent.monitor_processes_loop, daemon=True).start()
     threading.Thread(target=agent.start, daemon=True).start()
     uvicorn.run(agent_app, host="0.0.0.0", port=9000)

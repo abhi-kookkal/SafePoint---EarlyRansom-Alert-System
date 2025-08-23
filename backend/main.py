@@ -78,6 +78,7 @@ class AlertIn(BaseModel):
     status: str
     riskLevel: str
     ip: str
+    device_risk_score: int
 
 @app.post("/alerts")
 def receive_alert(alert: AlertIn, db: Session = Depends(get_db)):
@@ -91,7 +92,8 @@ def receive_alert(alert: AlertIn, db: Session = Depends(get_db)):
         timestamp=alert.timestamp,
         status=alert.status,
         riskLevel=alert.riskLevel,
-        ip=alert.ip
+        ip=alert.ip,
+        device_risk_score=alert.device_risk_score
     )
     
     merged_alert = db.merge(db_alert)  # use merge so re-sending same alert doesn’t break
@@ -113,7 +115,8 @@ def fetch_alerts(db: Session = Depends(get_db)):
             "timestamp": alert.timestamp.isoformat() if hasattr(alert.timestamp, 'isoformat') else str(alert.timestamp),
             "status": alert.status,
             "riskLevel": alert.riskLevel,
-            "device_id": alert.ip
+            "device_id": alert.ip,
+            "device_risk_score": alert.device_risk_score
         }
         for alert in alerts
     ]

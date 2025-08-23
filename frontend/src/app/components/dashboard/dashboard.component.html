@@ -11,6 +11,7 @@
           <th>Time</th>
           <th>Status</th>
           <th>Risk</th>
+          <th>Device Risk Score</th>
           <th>Action</th>
         </tr>
       </thead>
@@ -31,6 +32,7 @@
               {{ alert.riskLevel | titlecase }}
             </span>
           </td>
+          <td>{{ alert.device_risk_score }}</td>
           <td>
             <a [routerLink]="['/alert', alert.id]">View</a>
           </td>
