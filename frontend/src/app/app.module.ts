@@ -17,6 +17,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatListModule } from '@angular/material/list';
 import { MockInterceptor } from './services/mock.interceptor';
 import { LiveDeviceStatusComponent } from './live-device-status/live-device-status.component';
 
@@ -39,6 +40,7 @@ import { LiveDeviceStatusComponent } from './live-device-status/live-device-stat
     MatCardModule,
     MatTableModule,
     MatButtonModule,
+    MatListModule,
     MatDialogModule,
     MatIconModule,
     MatSnackBarModule,
