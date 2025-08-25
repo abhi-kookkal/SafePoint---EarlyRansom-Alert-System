@@ -193,7 +193,7 @@ def isolate_device(id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Alert not found")
 
     # Get the endpoint IP from DB
-    agent_ip = alert.ip
+    agent_ip = "127.0.0.1"
 
     try:
         print(f"[backend] isolate_device: alert={id}, forwarding request to agent {agent_ip}")

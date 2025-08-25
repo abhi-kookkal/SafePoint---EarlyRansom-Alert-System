@@ -22,9 +22,10 @@ import json
 # =========================
 # Config
 # =========================
-BACKEND = "http://172.19.103.44:8000"
-BACKEND_WS = "ws://172.19.103.44:8000/ws/device"   #  WebSocket endpoint
-
+# BACKEND = "http://172.19.103.44:8000"
+# BACKEND_WS = "ws://172.19.103.44:8000/ws/device"   #  WebSocket endpoint
+BACKEND = "http://127.0.0.1:8000"
+BACKEND_WS = "ws://127.0.0.1:8000/ws/device"   #  WebSocket endpoint
 ENDPOINT_NAME = socket.gethostname()
 WATCH_DIR = Path.home() / "Documents" / "Canaries"
 WATCH_DIR.mkdir(parents=True, exist_ok=True)
