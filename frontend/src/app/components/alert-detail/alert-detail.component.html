@@ -1,0 +1,20 @@
+<div class="alert-detail-dark" *ngIf="alert">
+    <div class="alert-header">
+      <mat-icon class="alert-icon" [ngClass]="alert.status">warning</mat-icon>
+      <span class="alert-title">Alert #{{ alert.id }}</span>
+      <span class="status-chip" [ngClass]="alert.status">{{ alert.status | titlecase }}</span>
+      <span class="risk-chip" [ngClass]="alert.riskLevel">{{ alert.riskLevel | titlecase }} Risk</span>
+    </div>
+    <div class="alert-fields">
+      <div class="field-row"><mat-icon>description</mat-icon> <span>{{ alert.file }}</span></div>
+      <div class="field-row"><mat-icon>memory</mat-icon> <span>{{ alert.process }}</span></div>
+      <div class="field-row"><mat-icon>person</mat-icon> <span>{{ alert.user }}</span></div>
+      <div class="field-row"><mat-icon>schedule</mat-icon> <span>{{ alert.timestamp }}</span></div>
+    </div>
+    <div class="actions">
+      <button mat-raised-button class="btn-red" (click)="killProcess()" [disabled]="alert.status === 'non-issue'">Kill Process</button>
+<button mat-raised-button class="btn-blue" (click)="isolateDevice()" [disabled]="alert.status === 'non-issue'">Isolate Device</button>
+<!-- <button mat-raised-button class="btn-green" (click)="markNonIssue()" [disabled]="alert.status === 'non-issue'">Mark as Non-Issue</button> -->
+    </div>
+    <div *ngIf="message" class="success-message">{{ message }}</div>
+  </div>

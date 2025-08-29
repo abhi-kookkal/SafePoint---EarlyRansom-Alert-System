@@ -1,0 +1,53 @@
+.endpoint-list {
+  h2 {
+    margin-bottom: 20px;
+    font-weight: 600;
+    color: #1565c0;
+    letter-spacing: 1px;
+  }
+  table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 4px 24px rgba(44,62,80,0.18);
+    overflow: hidden;
+    th, td {
+      padding: 14px 16px;
+      text-align: left;
+    }
+    th {
+      background: #e3f2fd;
+      font-weight: 600;
+      font-size: 1rem;
+      color: #333;
+    }
+    tr {
+      transition: background 0.15s;
+      &:hover {
+        background: #e3f2fd;
+      }
+    }
+    td {
+      font-size: 0.98rem;
+      border-bottom: 1px solid #f0f0f0;
+    }
+  }
+  > div {
+    margin-top: 24px;
+    font-size: 1.1rem;
+    color: #4caf50;
+    text-align: center;
+  }
+}
+
+@media (max-width: 700px) {
+  .endpoint-list table th, .endpoint-list table td {
+    padding: 8px 6px;
+    font-size: 0.92rem;
+  }
+  .endpoint-list h2 {
+    font-size: 1.1rem;
+  }
+}

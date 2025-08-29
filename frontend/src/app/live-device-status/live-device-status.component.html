@@ -1,0 +1,40 @@
+<div class="lds-modern-container">
+  <mat-card *ngIf="latestStatus" class="lds-status-card mat-elevation-z6">
+    <div class="lds-status-header">
+      <!-- <mat-icon class="lds-status-icon" color="primary">computer</mat-icon> -->
+      <div class="lds-status-title">Live Device Status</div>
+    </div>
+    <mat-divider></mat-divider>
+    <div class="lds-status-content">
+      <div class="lds-status-field">
+        <mat-icon color="accent">dns</mat-icon>
+        <span class="lds-label">Device IP</span>
+        <span class="lds-value">{{ latestStatus.ip }}</span>
+      </div>
+      <div class="lds-status-field">
+        <mat-icon color="warn">security</mat-icon>
+        <span class="lds-label">Risk Score</span>
+        <span class="lds-value">{{ latestStatus.device_risk_score }}</span>
+      </div>
+    </div>
+  </mat-card>
+
+  <mat-card *ngIf="allStatuses.length > 1" class="lds-history-card mat-elevation-z3">
+    <div class="lds-history-header">
+      <mat-icon color="primary">history</mat-icon>
+      <span class="lds-history-title">Status History</span>
+    </div>
+    <mat-divider></mat-divider>
+    <mat-list class="lds-history-list">
+      <mat-list-item *ngFor="let status of allStatuses.slice(1, 10); let last = last">
+        <mat-icon mat-list-avatar color="accent">computer</mat-icon>
+        <div class="lds-history-item-content">
+          <span class="lds-history-ip">IP: <b>{{ status.ip }}</b></span>
+          <span class="lds-history-risk">Risk: <b>{{ status.device_risk_score }}</b></span>
+        </div>
+        <mat-divider *ngIf="!last"></mat-divider>
+      </mat-list-item>
+    </mat-list>
+  </mat-card>
+</div>
+  

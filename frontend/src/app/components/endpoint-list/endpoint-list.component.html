@@ -1,0 +1,24 @@
+<div class="endpoint-list">
+    <h2>💻 Monitored Endpoints</h2>
+    <div *ngIf="loading">Loading endpoints...</div>
+    <table *ngIf="!loading && endpoints.length > 0">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Hostname</th>
+          <th>IP</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let ep of endpoints">
+          <td>{{ ep.id }}</td>
+          <td>{{ ep.hostname }}</td>
+          <td>{{ ep.ip }}</td>
+          <td>{{ ep.status }}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div *ngIf="!loading && endpoints.length === 0">No endpoints registered</div>
+  </div>
+  
